@@ -1,9 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-08-27.basil",
-})
+// Initialize Stripe with fallback for build time
+const stripe = process.env.STRIPE_SECRET_KEY 
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-08-27.basil",
+    })
+  : null
 
 // Sample workspace data - in a real app, this would come from a database
 const workspaces = [
@@ -40,8 +43,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ sessionId: mockSessionId })
     }
 
-    // Check for required environment variables
-    if (!process.env.STRIPE_SECRET_KEY) {
+    // Check for Stripe initialization
+    if (!stripe) {
       console.error("STRIPE_SECRET_KEY is not configured")
       return NextResponse.json({ error: "Payment system not configured" }, { status: 500 })
     }

@@ -2,17 +2,31 @@ import { type NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 import { headers } from "next/headers"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-08-27.basil",
-})
+// Initialize Stripe with fallback for build time
+const stripe = process.env.STRIPE_SECRET_KEY 
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-08-27.basil",
+    })
+  : null
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if Stripe is configured
+    if (!stripe || !webhookSecret) {
+      console.error("Stripe webhook not configured - missing STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET")
+      return NextResponse.json({ error: "Webhook not configured" }, { status: 500 })
+    }
+
     const body = await request.text()
     const headersList = await headers()
-    const signature = headersList.get("stripe-signature")!
+    const signature = headersList.get("stripe-signature")
+
+    if (!signature) {
+      console.error("Missing Stripe signature")
+      return NextResponse.json({ error: "Missing signature" }, { status: 400 })
+    }
 
     let event: Stripe.Event
 
