@@ -1,0 +1,91 @@
+{
+  "name": "E-commerce Order Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "order-received",
+        "httpMethod": "POST"
+      },
+      "id": "webhook-trigger",
+      "name": "Order Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Validate required order fields\nconst order = items[0].json;\n\nif (!order.customer_email || !order.items || !order.total) {\n  throw new Error('Missing required order fields');\n}\n\nreturn items.map(item => ({\n  json: {\n    ...item.json,\n    validated: true,\n    processing_date: new Date().toISOString()\n  }\n}));"
+      },
+      "id": "validate-order",
+      "name": "Validate Order Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.shopify.com/admin/api/2023-01/inventory_levels.json",
+        "method": "PUT",
+        "headers": {
+          "X-Shopify-Access-Token": "={{$env.SHOPIFY_ACCESS_TOKEN}}"
+        }
+      },
+      "id": "update-inventory",
+      "name": "Update Inventory",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [650, 200]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "subject": "Order Confirmation - {{$json.order_number}}",
+        "toList": "={{$json.customer_email}}",
+        "message": "Thank you for your order! Your order #{{$json.order_number}} has been received and is being processed."
+      },
+      "id": "send-confirmation",
+      "name": "Send Order Confirmation",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 1,
+      "position": [650, 400]
+    }
+  ],
+  "connections": {
+    "webhook-trigger": {
+      "main": [
+        [
+          {
+            "node": "validate-order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "validate-order": {
+      "main": [
+        [
+          {
+            "node": "update-inventory",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "send-confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "createdAt": "2024-01-15T10:00:00.000Z",
+  "updatedAt": "2024-01-15T10:00:00.000Z",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "versionId": "2.1"
+}
