@@ -1,9 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-08-27.basil",
-})
+// Initialize Stripe with fallback for build time
+const stripe = process.env.STRIPE_SECRET_KEY 
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-08-27.basil",
+    })
+  : null
 
 // Sample n8n workspace JSON files - in a real app, these would be stored in blob storage
 const workspaceFiles = {
@@ -100,6 +103,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Real Stripe session handling
+    if (!stripe) {
+      console.error("Stripe not configured - falling back to mock mode")
+      // Fallback to mock mode if Stripe is not configured
+      const workspaceJson = workspaceFiles[workspaceId as keyof typeof workspaceFiles]
+
+      if (!workspaceJson) {
+        return NextResponse.json({ error: "Workspace file not found" }, { status: 404 })
+      }
+
+      return new NextResponse(JSON.stringify(workspaceJson, null, 2), {
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Disposition": `attachment; filename="${workspaceJson.name.replace(/[^a-zA-Z0-9]/g, "-")}.json"`,
+        },
+      })
+    }
+
     const session = await stripe.checkout.sessions.retrieve(sessionId)
 
     if (session.payment_status !== "paid") {
